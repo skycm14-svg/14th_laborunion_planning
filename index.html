@@ -587,6 +587,32 @@
     font-size: 10.5px; letter-spacing: 1.5px; color: var(--muted2); position: relative; z-index: 1;
   }
 
+  .admin-bar {
+    text-align: center; padding: 0 20px 34px; position: relative; z-index: 1;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .admin-link {
+    background: none; border: none; color: var(--muted2); opacity: 0.45;
+    font-family: 'Noto Sans KR', sans-serif; font-size: 10.5px; letter-spacing: 0.5px;
+    cursor: pointer; padding: 4px 8px; transition: opacity 0.2s, color 0.2s;
+  }
+  .admin-link:hover { opacity: 1; color: var(--gold-soft); }
+  .admin-login { display: flex; gap: 8px; align-items: center; }
+  .admin-login input {
+    background: rgba(255,255,255,0.04); border: 1px solid var(--panel-line); border-radius: 8px;
+    color: var(--ink); font-size: 12px; padding: 6px 10px; width: 110px; outline: none;
+  }
+  .admin-login button {
+    background: var(--panel); border: 1px solid var(--panel-line); color: var(--muted2);
+    border-radius: 8px; padding: 6px 14px; font-size: 12px; cursor: pointer;
+  }
+  .admin-status { font-size: 11px; color: var(--gold-soft); }
+  .gb-delete-btn, .mem-delete-btn {
+    background: none; border: none; color: #e08585; opacity: 0.6; cursor: pointer;
+    font-size: 11px; padding: 2px 6px; float: right; transition: opacity 0.2s;
+  }
+  .gb-delete-btn:hover, .mem-delete-btn:hover { opacity: 1; }
+
   .archive-slot.active { border-style: solid; border-color: var(--gold-soft); color: var(--gold-soft); box-shadow: 0 0 16px rgba(217,168,103,0.3); }
 
   .archive-photo {
@@ -665,7 +691,7 @@
   <header class="hero">
     <div class="term-dday">
       <span class="term-dday-num">D-<span id="ddayNum">117</span></span>
-      <span class="term-dday-text">임기 종료(2026.12.31) 까지<br>남은 3개월도 함께 힘내요!</span>
+      <span class="term-dday-text">임기 종료(2026.12.31) 까지<br>남은 4개월도 함께 힘내요!</span>
     </div>
     <span class="eyebrow">SK Hynix 14th Labor Union · Planning Office</span>
     <h1 class="headline">2024 — 2026<b>함께한 3년,<br>이어갈 우리의 인연</b></h1>
@@ -1419,6 +1445,15 @@
 
   <footer class="site-footer">SK HYNIX · 14TH LABOR UNION · PLANNING OFFICE</footer>
 
+  <div class="admin-bar" id="adminBar">
+    <button type="button" id="adminToggleBtn" class="admin-link">관리자 모드</button>
+    <div id="adminLoginBox" class="admin-login" style="display:none;">
+      <input type="password" id="adminPw" placeholder="비밀번호" maxlength="10">
+      <button type="button" id="adminLoginBtn">확인</button>
+    </div>
+    <span id="adminStatus" class="admin-status"></span>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script>
@@ -1443,6 +1478,7 @@
     var PEOPLE = ["김근우","박정은","최정은","장지연","김희진","박수강","김혜나","김윤진","이은희","김인경","이성찬","박승찬","김현수","양철명","김득환","김신화"];
     var entries = [];
     var currentFilter = null;
+    var isAdmin = false;
 
     function escapeHtml(str) {
       return String(str).replace(/[&<>"']/g, function (ch) {
@@ -1497,7 +1533,8 @@
       empty.style.display = 'none';
       list.innerHTML = filtered.map(function (e) {
         var toLabel = e.to === '전체' ? '우리 모두에게' : e.to;
-        return '<li class="gb-card">' +
+        var delBtn = isAdmin ? '<button type="button" class="gb-delete-btn" data-id="' + e.id + '">삭제</button>' : '';
+        return '<li class="gb-card">' + delBtn +
           '<p class="gb-to">To. ' + escapeHtml(toLabel) + '</p>' +
           '<p class="gb-msg">' + escapeHtml(e.message) + '</p>' +
           '<p class="gb-from">— ' + escapeHtml(e.from) + '<span class="gb-time">' + fmtTime(e.ts) + '</span></p>' +
@@ -1509,13 +1546,18 @@
       var loading = document.getElementById('gbLoading');
       if (!db) { loading.style.display = 'none'; render(); return; }
       db.collection('guestbook').orderBy('ts', 'desc').onSnapshot(function (snapshot) {
-        entries = snapshot.docs.map(function (doc) { return doc.data(); });
+        entries = snapshot.docs.map(function (doc) { var d = doc.data(); d.id = doc.id; return d; });
         loading.style.display = 'none';
         render();
       }, function () {
         loading.style.display = 'none';
         render();
       });
+    }
+
+    async function deleteEntry(id) {
+      if (!db || !id) return;
+      try { await db.collection('guestbook').doc(id).delete(); } catch (err) { /* ignore */ }
     }
 
     async function addEntry(entry) {
@@ -1596,7 +1638,8 @@
         var listEl = card.querySelector('.mem-answers');
         var list = (memoryAnswers[q] || []).slice().sort(function (a, b) { return b.ts - a.ts; });
         listEl.innerHTML = list.map(function (a) {
-          return '<li><b>' + escapeHtml(a.name) + '</b>' + escapeHtml(a.text) + '</li>';
+          var delBtn = isAdmin ? '<button type="button" class="mem-delete-btn" data-id="' + a.id + '">삭제</button>' : '';
+          return '<li>' + delBtn + '<b>' + escapeHtml(a.name) + '</b>' + escapeHtml(a.text) + '</li>';
         }).join('');
       });
     }
@@ -1607,12 +1650,18 @@
         var map = {};
         snapshot.docs.forEach(function (doc) {
           var data = doc.data();
+          data.id = doc.id;
           if (!map[data.q]) map[data.q] = [];
           map[data.q].push(data);
         });
         memoryAnswers = map;
         renderMemoryAnswers();
       });
+    }
+
+    async function deleteMemoryAnswer(id) {
+      if (!db || !id) return;
+      try { await db.collection('memoryAnswers').doc(id).delete(); } catch (err) { /* ignore */ }
     }
 
     async function addMemoryAnswer(q, name, text) {
@@ -1739,6 +1788,54 @@
         card.addEventListener('click', function () {
           setFilter(card.getAttribute('data-person'));
         });
+      });
+
+      var adminToggleBtn = document.getElementById('adminToggleBtn');
+      var adminLoginBox = document.getElementById('adminLoginBox');
+      var adminPw = document.getElementById('adminPw');
+      var adminLoginBtn = document.getElementById('adminLoginBtn');
+      var adminStatus = document.getElementById('adminStatus');
+
+      adminToggleBtn.addEventListener('click', function () {
+        if (isAdmin) {
+          isAdmin = false;
+          adminToggleBtn.textContent = '관리자 모드';
+          adminStatus.textContent = '';
+          render();
+          renderMemoryAnswers();
+        } else {
+          adminLoginBox.style.display = adminLoginBox.style.display === 'none' ? 'flex' : 'none';
+          if (adminLoginBox.style.display === 'flex') adminPw.focus();
+        }
+      });
+
+      function tryAdminLogin() {
+        if (adminPw.value === '0000') {
+          isAdmin = true;
+          adminLoginBox.style.display = 'none';
+          adminPw.value = '';
+          adminToggleBtn.textContent = '관리자 모드 끄기';
+          adminStatus.textContent = '관리자 모드 ON';
+          render();
+          renderMemoryAnswers();
+        } else {
+          adminStatus.textContent = '비밀번호가 틀렸어요';
+          setTimeout(function () { adminStatus.textContent = ''; }, 2000);
+        }
+      }
+      adminLoginBtn.addEventListener('click', tryAdminLogin);
+      adminPw.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryAdminLogin(); });
+
+      document.getElementById('gbList').addEventListener('click', function (e) {
+        var btn = e.target.closest('.gb-delete-btn');
+        if (!btn) return;
+        if (confirm('이 글을 삭제할까요?')) deleteEntry(btn.getAttribute('data-id'));
+      });
+
+      document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.mem-delete-btn');
+        if (!btn) return;
+        if (confirm('이 답변을 삭제할까요?')) deleteMemoryAnswer(btn.getAttribute('data-id'));
       });
     });
   })();
